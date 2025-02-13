@@ -38,8 +38,6 @@ jobs:
   build:
     name: 🚧 Build Docker Images
     needs: [ test, metadata ]
-    env:
-      METADATA: ${{ fromJSON(needs.metadata.outputs.meta) }}
     strategy:
       matrix:
         platform: 
@@ -53,10 +51,11 @@ jobs:
           - linux/s390x
     runs-on: ubuntu-latest
     steps:
-      - name: 🏷️ Specify target platform
+      - name: 🏷️ Read metadata
+        id: meta
         run: |
-          echo "$METADATA"
-          exit 1
+          echo "data=${{ fromJSON(needs.metadata.outputs.meta) }}" >> $GITHUB_OUTPUT
+          echo "data=${{ fromJSON(needs.metadata.outputs.meta) }}"
 
       - name: 📦 Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
@@ -86,8 +85,8 @@ jobs:
           push: true
           sbom: true
           provenance: true
-          labels: ${{ env.METADATA.labels }}
-          annotations: ${{ env.METADATA.annotations }}
+          labels: ${{ steps.meta.outputs.data.labels }}
+          annotations: ${{ steps.meta.outputs.data.annotations }}
           outputs: type=image,"name=${{ env.REGISTRY_IMAGE }}",push-by-digest=true,name-canonical=true,push=true
 
       - name: 📑 Export digest
@@ -110,9 +109,12 @@ jobs:
     name: 📦 Bundle and Deploy ✨
     needs: [ metadata, build ]
     runs-on: ubuntu-latest
-    env:
-      METADATA: ${{ fromJSON(needs.metadata.outputs.meta) }}
     steps:
+      - name: 🏷️ Read metadata
+        id: meta
+        run: |
+          echo "data=${{ fromJSON(needs.metadata.outputs.meta) }}" >> $GITHUB_OUTPUT
+
       - name: 📥 Download digests
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # pin@v4
         with:
