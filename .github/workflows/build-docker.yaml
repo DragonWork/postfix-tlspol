@@ -23,7 +23,9 @@ jobs:
     name: 📊 Synthesize Docker Metadata
     runs-on: ubuntu-latest
     outputs:
-      meta: ${{ toJSON(steps.metadata.outputs) }}
+      tags: ${{ steps.metadata.outputs.tags }}
+      labels: ${{ steps.metadata.outputs.labels }}
+      annotations: ${{ steps.metadata.outputs.annotations }}
     steps:
       - id: metadata
         uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96 # pin@v5
@@ -51,12 +53,6 @@ jobs:
           - linux/s390x
     runs-on: ubuntu-latest
     steps:
-      - name: 🏷️ Read metadata
-        id: meta
-        run: |
-          echo "data=${{ fromJSON(needs.metadata.outputs.meta) }}" >> $GITHUB_OUTPUT
-          echo "data=${{ fromJSON(needs.metadata.outputs.meta) }}"
-
       - name: 📦 Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
@@ -85,8 +81,8 @@ jobs:
           push: true
           sbom: true
           provenance: true
-          labels: ${{ steps.meta.outputs.data.labels }}
-          annotations: ${{ steps.meta.outputs.data.annotations }}
+          labels: ${{ needs.metadata.outputs.labels }}
+          annotations: ${{ needs.metadata.outputs.annotations }}
           outputs: type=image,"name=${{ env.REGISTRY_IMAGE }}",push-by-digest=true,name-canonical=true,push=true
 
       - name: 📑 Export digest
@@ -110,11 +106,6 @@ jobs:
     needs: [ metadata, build ]
     runs-on: ubuntu-latest
     steps:
-      - name: 🏷️ Read metadata
-        id: meta
-        run: |
-          echo "data=${{ fromJSON(needs.metadata.outputs.meta) }}" >> $GITHUB_OUTPUT
-
       - name: 📥 Download digests
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # pin@v4
         with:
@@ -132,6 +123,6 @@ jobs:
         working-directory: ${{ runner.temp }}/digests
         run: |
           docker buildx imagetools create \
-            -t ${{ join(env.METADATA.tags, ' -t ') }} \
-            --annotation "${{ join(env.METADATA.annotations, '" "') }}" \
+            -t ${{ join(needs.metadata.outputs.tags, ' -t ') }} \
+            --annotation "${{ join(needs.metadata.outputs.annotations, '" "') }}" \
             $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
