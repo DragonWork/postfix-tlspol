@@ -23,12 +23,14 @@ jobs:
     name: 📊 Synthesize Docker Metadata
     runs-on: ubuntu-latest
     outputs:
-      tags: ${{ steps.metadata.outputs.tags }}
-      labels: ${{ steps.metadata.outputs.labels }}
-      annotations: ${{ steps.metadata.outputs.annotations }}
+      tags: ${{ toJSON(steps.metadata.outputs.tags) }}
+      labels: ${{ toJSON(steps.metadata.outputs.labels) }}
+      annotations: ${{ toJSON(steps.metadata.outputs.annotations) }}
     steps:
       - id: metadata
         uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96 # pin@v5
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: index
         with:
           images: ${{ env.REGISTRY_IMAGE }}
           tags: |
@@ -81,8 +83,8 @@ jobs:
           push: true
           sbom: true
           provenance: true
-          labels: ${{ needs.metadata.outputs.labels }}
-          annotations: ${{ needs.metadata.outputs.annotations }}
+          labels: ${{ fromJSON(needs.metadata.outputs.labels) }}
+          annotations: ${{ fromJSON(needs.metadata.outputs.annotations) }}
           outputs: type=image,"name=${{ env.REGISTRY_IMAGE }}",push-by-digest=true,name-canonical=true,push=true
 
       - name: 📑 Export digest
@@ -100,6 +102,7 @@ jobs:
           path: ${{ runner.temp }}/digests/*
           if-no-files-found: error
           retention-days: 1
+          compression-level: 0
 
   bundle:
     name: 📦 Bundle and Deploy ✨
@@ -123,6 +126,6 @@ jobs:
         working-directory: ${{ runner.temp }}/digests
         run: |
           docker buildx imagetools create \
-            -t ${{ join(needs.metadata.outputs.tags, ' -t ') }} \
-            --annotation "${{ join(needs.metadata.outputs.annotations, '" "') }}" \
+            -t ${{ join(fromJSON(needs.metadata.outputs.tags), ' -t ') }} \
+            --annotation "${{ join(fromJSON(needs.metadata.outputs.annotations), '" "') }}" \
             $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
