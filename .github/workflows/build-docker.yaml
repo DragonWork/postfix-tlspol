@@ -126,6 +126,6 @@ jobs:
         working-directory: ${{ runner.temp }}/digests
         run: |
           docker buildx imagetools create \
-            -t ${{ join(fromJSON(needs.metadata.outputs.tags), ' -t ') }} \
-            --annotation "${{ join(fromJSON(needs.metadata.outputs.annotations), '" "') }}" \
+            $(jq -cr 'map("-t " + .) | join(" ")' <<< "${{ needs.metadata.outputs.tags }}") \
+            $(jq -cr 'map("--annotation \"" + . + "\\"") | join(" ")' <<< "${{ needs.metadata.outputs.annotations }}") \
             $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
