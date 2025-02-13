@@ -10,9 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  REGISTRY_IMAGE: zuplu/postfix-tlspol
-  DEV_REGISTRY_IMAGE: zupluadmin/postfix-tlspol-dev
-  PLATFORMS: "linux-amd64,linux-arm-v6,linux-arm-v7,linux-arm64,linux-386,linux-ppc64le,linux-riscv64,linux-s390x"
+  REGISTRY_IMAGE: zupluadmin/postfix-tlspol-dev
 
 permissions: read-all
 
@@ -26,9 +24,6 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - name: 🔧 Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y jq
-
       - name: 🏷️ Determine version tag
         id: tag
         run: |
@@ -77,6 +72,12 @@ jobs:
       - name: 🛠️ Set up Docker Buildx
         uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # pin@v3
 
+      - name: 📊 Synthesize Docker metadata
+        id: meta
+        uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96 # pin@v5
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+
       - name: 🔐 Login to Docker Hub
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
         with:
@@ -94,15 +95,38 @@ jobs:
           context: .
           file: deployments/Dockerfile
           push: true
-          tags: ${{ env.DEV_REGISTRY_IMAGE }}:${{ env.VERSION_TAG }}-${{ env.PLATFORM }}
           sbom: false
           provenance: false
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          outputs: type=image,"name=${{ env.REGISTRY_IMAGE }}",push-by-digest=true,name-canonical=true,push=true
+
+      - name: 📑 Export digest
+        run: |
+          mkdir -p ${{ runner.temp }}/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - name: 📤 Upload digest
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # pin@v4
+        with:
+          name: digests-${{ env.PLATFORM }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
 
   manifest:
     name: 📦 Bundle and Deploy ✨
     needs: [ label, build ]
     runs-on: ubuntu-latest
     steps:
+      - name: 📥 Download digests
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # pin@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+
       - name: 🏷️ Prepare tags
         run: |
           LATEST_TAG="${{ needs.label.outputs.LATEST_TAG }}"
@@ -110,8 +134,16 @@ jobs:
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
 
-      - name: 🔧 Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: 📊 Synthesize Docker metadata
+        id: meta
+        uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96 # pin@v5
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+          tags: |
+            type=semver,pattern=v{{version}}
+            type=semver,pattern=v{{major}}.{{minor}}
+            type=semver,pattern=v{{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: 🔐 Login to Docker Hub
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # pin@v3
@@ -120,24 +152,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: ✨ Bundle and push version »${{ env.VERSION_TAG }}«
+        working-directory: ${{ runner.temp }}/digests
         run: |
-          PLATFORMS="${{ env.PLATFORMS }}"
-          IFS=',' read -ra PLATFORM_ARRAY <<< "$PLATFORMS"
-          CMD="docker manifest create ${{ env.REGISTRY_IMAGE }}:$VERSION_TAG"
-          for PLATFORM in "${PLATFORM_ARRAY[@]}"; do
-            CMD+=" --amend ${{ env.DEV_REGISTRY_IMAGE }}:$VERSION_TAG-$PLATFORM"
-          done
-          eval "$CMD"
-          docker manifest push ${{ env.REGISTRY_IMAGE }}:$VERSION_TAG
-
-      - name: ✨ Bundle and push version »latest«
-        if: ${{ success() && env.VERSION_TAG == env.LATEST_TAG }}
-        run: |
-          PLATFORMS="${{ env.PLATFORMS }}"
-          IFS=',' read -ra PLATFORM_ARRAY <<< "$PLATFORMS"
-          CMD="docker manifest create ${{ env.REGISTRY_IMAGE }}:latest"
-          for PLATFORM in "${PLATFORM_ARRAY[@]}"; do
-            CMD+=" --amend ${{ env.DEV_REGISTRY_IMAGE }}:$VERSION_TAG-$PLATFORM"
-          done
-          eval "$CMD"
-          docker manifest push ${{ env.REGISTRY_IMAGE }}:latest
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
