@@ -136,13 +136,10 @@ jobs:
       - name: ✨ Bundle and push manifest
         working-directory: ${{ runner.temp }}/digests
         run: |
-          echo "$METADATA" > "../metadata.json"
-          docker buildx imagetools create -f ../metadata.json \
+          docker buildx imagetools create \
             $(jq -r '.tags | map("-t \(.)") | join(" ")' <<< "$METADATA") \
             $(printf "$REGISTRY_IMAGE@sha256:%s " *)
-          DIGEST=$(docker buildx imagetools inspect --raw $REGISTRY_IMAGE)
-          echo "$DIGEST"
-          DIGEST=$(echo "$DIGEST" | jq '.config.digest')
+          DIGEST=$(docker buildx imagetools inspect $REGISTRY_IMAGE --format '{{json .Manifest}}' | jq '.digest')
           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
 
       - name: 🔏 Attest build provenance
