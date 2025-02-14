@@ -26,7 +26,7 @@ jobs:
       tags: ${{ toJSON(steps.metadata.outputs.tags) }}
       labels: ${{ toJSON(steps.metadata.outputs.labels) }}
       annotations: ${{ toJSON(steps.metadata.outputs.annotations) }}
-      json: ${{ steps.metadata.outputs.json }}
+      json: ${{ toJSON(steps.metadata.outputs.json) }}
     steps:
       - id: metadata
         uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96 # pin@v5
@@ -55,9 +55,6 @@ jobs:
           - linux/riscv64
           - linux/s390x
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      attestations: write
     steps:
       - name: 📦 Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
@@ -91,14 +88,6 @@ jobs:
           annotations: ${{ fromJSON(needs.metadata.outputs.annotations) }}
           outputs: type=image,"name=${{ env.REGISTRY_IMAGE }}",push-by-digest=true,name-canonical=true,push=true
 
-      - name: 🔏 Attest build provenance
-        uses: actions/attest-build-provenance@520d128f165991a6c774bcb264f323e3d70747f4 # pin@v2
-        id: attest
-        with:
-          subject-name: index.docker.io/${{ env.REGISTRY_IMAGE }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
-
       - name: 📑 Export digest
         run: |
           mkdir -p ${{ runner.temp }}/digests
@@ -120,8 +109,11 @@ jobs:
     name: 📦 Bundle and Deploy ✨
     needs: [ metadata, build ]
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      attestations: write
     env:
-      METADATA: ${{ needs.metadata.outputs.json }}
+      METADATA: ${{ fromJSON(needs.metadata.outputs.json) }}
     steps:
       - name: 📥 Download digests
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # pin@v4
@@ -139,7 +131,17 @@ jobs:
       - name: ✨ Bundle and push manifest
         working-directory: ${{ runner.temp }}/digests
         run: |
-          docker buildx imagetools create \
-            $(jq -r '.tags | map("-t \(.)") | join(" ")' <<< "$METADATA") \
-            $(jq -r '.annotations | map("--annotation \"\(.)\"") | join(" ")' <<< "$METADATA") \
-            $(printf "$REGISTRY_IMAGE@sha256:%s " *)
+          CMD="docker buildx imagetools create \
+            $(echo "$METADATA" | jq -r '.tags | map("-t \(.)") | join(" ")') \
+            $(echo "$METADATA" | jq -r '.annotations | map("--annotation \'\(.)\'") | join(" ")') \
+            $(printf "$REGISTRY_IMAGE@sha256:%s " *)"
+          echo "$CMD"
+          eval "$CMD"
+
+      - name: 🔏 Attest build provenance
+        uses: actions/attest-build-provenance@520d128f165991a6c774bcb264f323e3d70747f4 # pin@v2
+        id: attest
+        with:
+          subject-name: index.docker.io/${{ env.REGISTRY_IMAGE }}
+          subject-path: ${{ runner.temp }}/digests/*
+          push-to-registry: false
