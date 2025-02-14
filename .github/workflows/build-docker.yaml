@@ -87,6 +87,8 @@ jobs:
           labels: ${{ fromJSON(needs.metadata.outputs.labels) }}
           annotations: ${{ fromJSON(needs.metadata.outputs.annotations) }}
           outputs: type=image,"name=${{ env.REGISTRY_IMAGE }}",push-by-digest=true,name-canonical=true,push=true
+          cache-to: type=gha,mode=max
+          cache-from: type=gha
 
       - name: 📑 Export digest
         run: |
@@ -131,14 +133,10 @@ jobs:
       - name: ✨ Bundle and push manifest
         working-directory: ${{ runner.temp }}/digests
         run: |
-          CMD=<<EOC
           docker buildx imagetools create \
-           $(jq -r '.annotations | map("--annotation \(. | tojson)") | join(" ")' <<< "$METADATA") \
-           $(jq -r '.tags | map("-t \(.)") | join(" ")' <<< "$METADATA") \
-           $(printf "$REGISTRY_IMAGE@sha256:%s " *)
-          EOC
-          echo "$CMD"
-          eval "$CMD"
+            $(jq -r '.annotations | map("--annotation \(. | tojson)") | join(" ")' <<< "$METADATA") \
+            $(jq -r '.tags | map("-t \(.)") | join(" ")' <<< "$METADATA") \
+            $(printf "$REGISTRY_IMAGE@sha256:%s " *)
 
       - name: 🔏 Attest build provenance
         uses: actions/attest-build-provenance@520d128f165991a6c774bcb264f323e3d70747f4 # pin@v2
