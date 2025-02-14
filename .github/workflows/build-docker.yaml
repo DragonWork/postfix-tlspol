@@ -55,6 +55,9 @@ jobs:
           - linux/riscv64
           - linux/s390x
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      attestations: write
     steps:
       - name: 📦 Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
