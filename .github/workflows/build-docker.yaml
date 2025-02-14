@@ -137,7 +137,6 @@ jobs:
         working-directory: ${{ runner.temp }}/digests
         run: |
           docker buildx imagetools create \
-            --annotation $(jq -r '.annotations | join("\n") | tojson' <<< "$METADATA") \
             $(jq -r '.tags | map("-t \(.)") | join(" ")' <<< "$METADATA") \
             $(printf "$REGISTRY_IMAGE@sha256:%s " *)
 
