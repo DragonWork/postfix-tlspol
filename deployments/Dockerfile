@@ -8,7 +8,7 @@ RUN addgroup -g 1000 default \
 RUN apk add --no-cache git unbound redis
 
 # Copy postfix-tlspol
-COPY --chown=default:default . /build
+COPY --chown=default:default --exclude=.github --exclude=deployments --exclude=init . /build
 
 # Build postfix-tlspol and remove Go toolchain
 RUN su default -c "/build/scripts/build.sh build-only ; go clean -cache -modcache" \
