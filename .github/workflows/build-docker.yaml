@@ -133,7 +133,7 @@ jobs:
         run: |
           CMD="docker buildx imagetools create \
             $(echo "$METADATA" | jq -r '.tags | map("-t \(.)") | join(" ")') \
-            $(echo "$METADATA" | jq -r '.annotations | map("--annotation \'\(.)\'") | join(" ")') \
+            $(echo "$METADATA" | jq -r '.annotations | map("--annotation \(.)") | join(" ")') \
             $(printf "$REGISTRY_IMAGE@sha256:%s " *)"
           echo "$CMD"
           eval "$CMD"
