@@ -138,7 +138,7 @@ jobs:
         run: |
           DIGEST=$(docker buildx imagetools create --progress rawjson \
             $(jq -r '.tags | map("-t \(.)") | join(" ")' <<< "$METADATA") \
-            $(printf "$REGISTRY_IMAGE@sha256:%s " *) | \
+            $(printf "$REGISTRY_IMAGE@sha256:%s " *) 2>&1 | \
             jq -s -r 'add | .vertexes[]? | objects | select(.digest) | .digest')
           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
 
