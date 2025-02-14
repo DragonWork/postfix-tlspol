@@ -56,6 +56,11 @@ jobs:
           - linux/s390x
     runs-on: ubuntu-latest
     steps:
+      - name: 📑 Prepare environment
+        run: |
+          PLATFORM="$(echo "${{ matrix.platform }}" | tr '/' '-')"
+          echo "PLATFORM=$PLATFORM" >> $GITHUB_ENV
+
       - name: 📦 Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
@@ -87,16 +92,14 @@ jobs:
           labels: ${{ fromJSON(needs.metadata.outputs.labels) }}
           annotations: ${{ fromJSON(needs.metadata.outputs.annotations) }}
           outputs: type=image,"name=${{ env.REGISTRY_IMAGE }}",push-by-digest=true,name-canonical=true,push=true
-          cache-to: type=gha,mode=max
-          cache-from: type=gha
+          cache-to: type=gha,mode=max,scope=${{ env.PLATFORM }}
+          cache-from: type=gha,scope=${{ env.PLATFORM }}
 
-      - name: 📑 Export digest
+      - name: 📄 Export digest
         run: |
           mkdir -p ${{ runner.temp }}/digests
           digest="${{ steps.build.outputs.digest }}"
           touch "${{ runner.temp }}/digests/${digest#sha256:}"
-          PLATFORM="$(echo "${{ matrix.platform }}" | tr '/' '-')"
-          echo "PLATFORM=$PLATFORM" >> $GITHUB_ENV
 
       - name: 📤 Upload digest
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # pin@v4
