@@ -131,10 +131,12 @@ jobs:
       - name: ✨ Bundle and push manifest
         working-directory: ${{ runner.temp }}/digests
         run: |
-          CMD="docker buildx imagetools create" \
-          $(jq -r '.annotations | map("--annotation \(. | tojson)") | join(" ")' <<< "$METADATA") \
-          $(jq -r '.tags | map("-t \(.)") | join(" ")' <<< "$METADATA") \
-          $(printf "$REGISTRY_IMAGE@sha256:%s " *)
+          CMD=<<EOC
+          docker buildx imagetools create \
+           $(jq -r '.annotations | map("--annotation \(. | tojson)") | join(" ")' <<< "$METADATA") \
+           $(jq -r '.tags | map("-t \(.)") | join(" ")' <<< "$METADATA") \
+           $(printf "$REGISTRY_IMAGE@sha256:%s " *)
+          EOC
           echo "$CMD"
           eval "$CMD"
 
