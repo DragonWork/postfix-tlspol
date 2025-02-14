@@ -59,7 +59,7 @@ jobs:
       - name: 📑 Prepare environment
         run: |
           PLATFORM="$(echo "${{ matrix.platform }}" | tr '/' '-')"
-          echo "PLATFORM=$PLATFORM" >> $GITHUB_ENV
+          echo "PLATFORM=$PLATFORM" >> "$GITHUB_ENV"
 
       - name: 📦 Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
@@ -136,14 +136,16 @@ jobs:
       - name: ✨ Bundle and push manifest
         working-directory: ${{ runner.temp }}/digests
         run: |
-          docker buildx imagetools create \
+          DIGEST=$(docker buildx imagetools create --progress rawjson \
             $(jq -r '.tags | map("-t \(.)") | join(" ")' <<< "$METADATA") \
-            $(printf "$REGISTRY_IMAGE@sha256:%s " *)
+            $(printf "$REGISTRY_IMAGE@sha256:%s " *) | \
+            jq -s -r 'add | .vertexes[]? | objects | select(.digest) | .digest')
+          echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
 
       - name: 🔏 Attest build provenance
         uses: actions/attest-build-provenance@520d128f165991a6c774bcb264f323e3d70747f4 # pin@v2
         id: attest
         with:
           subject-name: index.docker.io/${{ env.REGISTRY_IMAGE }}
-          subject-path: ${{ runner.temp }}/digests/*
+          subject-digest: ${{ env.DIGEST }}
           push-to-registry: false
