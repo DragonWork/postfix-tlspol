@@ -140,7 +140,9 @@ jobs:
           docker buildx imagetools create -f ../metadata.json \
             $(jq -r '.tags | map("-t \(.)") | join(" ")' <<< "$METADATA") \
             $(printf "$REGISTRY_IMAGE@sha256:%s " *)
-          DIGEST=$(docker buildx imagetools inspect --raw $REGISTRY_IMAGE | jq '.config.digest')
+          DIGEST=$(docker buildx imagetools inspect --raw $REGISTRY_IMAGE)
+          echo "$DIGEST"
+          DIGEST=$(echo "$DIGEST" | jq '.config.digest')
           echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
 
       - name: 🔏 Attest build provenance
