@@ -127,5 +127,5 @@ jobs:
         run: |
           docker buildx imagetools create \
             $(jq -cr 'map("-t " + .) | join(" ")' <<< "${{ needs.metadata.outputs.tags }}") \
-            $(jq -cr 'map("--annotation \\"" + . + "\\"") | join(" ")' <<< "${{ needs.metadata.outputs.annotations }}") \
+            $(jq -cr 'map("--annotation \"" + . + "\"") | join(" ")' <<< "${{ needs.metadata.outputs.annotations }}") \
             $(printf "${{ env.REGISTRY_IMAGE }}@sha256:%s " *)
