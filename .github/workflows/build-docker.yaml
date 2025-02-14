@@ -26,6 +26,7 @@ jobs:
       tags: ${{ toJSON(steps.metadata.outputs.tags) }}
       labels: ${{ toJSON(steps.metadata.outputs.labels) }}
       annotations: ${{ toJSON(steps.metadata.outputs.annotations) }}
+      json: ${{ toJSON(steps.metadata.outputs.json) }}
     steps:
       - id: metadata
         uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96 # pin@v5
@@ -126,6 +127,6 @@ jobs:
         working-directory: ${{ runner.temp }}/digests
         run: |
           docker buildx imagetools create \
-            $(jq -cr 'map("-t " + .) | join(" ")' <<< "${{ needs.metadata.outputs.tags }}") \
-            $(jq -cr 'map("--annotation \"" + . + "\"") | join(" ")' <<< "${{ needs.metadata.outputs.annotations }}") \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "${{ needs.metadata.outputs.json }}") \
+            $(jq -cr '.annotations | map("--annotation \"" + . + "\"") | join(" ")' <<< "${{ needs.metadata.outputs.json }}") \
             $(printf "${{ env.REGISTRY_IMAGE }}@sha256:%s " *)
